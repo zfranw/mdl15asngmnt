@@ -1,0 +1,402 @@
+Task 1 : Implement request validation for a registration form that contains the following fields: name, email, and password. Validate the following rules:
+
+name: required, string, minimum length 2.
+email: required, valid email format.
+password: required, string, minimum length 8.
+
+Answer : To complete this task, i first use following code to create a new request class
+
+php artisan make:request RegistrationFormRequest
+
+This create a form request in app/Http/Requests directory
+
+Then opened that php file from that directory and wrote following code in that so that request go validated
+
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class RegistrationFormRequest extends FormRequest
+{
+    public function authorize()
+    {
+        return true;
+    }
+
+    public function rules()
+    {
+        return [
+            'name' => 'required|string|min:2',
+            'email' => 'required|email',
+            'password' => 'required|string|min:8',
+        ];
+    }
+}
+
+Task 2 : Create a route /home that redirects to /dashboard using a 302 redirect.
+
+Answer : For this i opened routes/web.php directory file and wrote following code in web.php file
+
+Route::get('/home', function () {
+    return redirect('/dashboard');
+});
+
+I close dashboard in that file by adding
+
+Route::get('/dashboard', function () {
+    // Your dashboard logic here
+});
+
+After that i cleared cache by following code
+
+php artisan route:clear
+
+Task 3 : Create a global middleware that logs the request method and URL for every incoming request. Log the information to the Laravel log file.
+
+Answer : I created a middleware class by following code
+
+php artisan make:middleware LogRequestMiddleware
+
+Then wrote following code in the file of app/Http/Middleware
+
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Support\Facades\Log;
+
+class LogRequestMiddleware
+{
+    public function handle($request, Closure $next)
+    {
+        $method = $request->method();
+        $url = $request->fullUrl();
+
+        Log::info("Request: {$method} {$url}");
+
+        return $next($request);
+    }
+}
+
+To registed the middleware i wrote following code in app/Http/Kernel.php
+
+protected $middleware = [
+    // Other middleware...
+    \App\Http\Middleware\LogRequestMiddleware::class,
+];
+
+Task 4 : Create a route group for authenticated users only. This group should include routes for /profile and /settings. Apply a middleware called AuthMiddleware to the route group to ensure only authenticated users can access these routes.
+
+Answer : I use following code create authenticated middleware
+
+php artisan make:middleware AuthMiddleware
+
+After that wrote following code in that file
+
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Support\Facades\Auth;
+
+class AuthMiddleware
+{
+    public function handle($request, Closure $next)
+    {
+        if (Auth::check()) {
+            return $next($request);
+        }
+
+        return redirect('/login');
+    }
+}
+
+I have registed the code in following kernal.php
+
+protected $routeMiddleware = [
+    // Other middleware...
+    'auth' => \App\Http\Middleware\AuthMiddleware::class,
+];
+
+For defining webroute i wrote following code,
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/profile', function () {
+        // Profile route logic
+    });
+
+    Route::get('/settings', function () {
+        // Settings route logic
+    });
+});
+
+Task 5 : Create a controller called ProductController that handles CRUD operations for a resource called Product. Implement the following methods:
+
+index(): Display a list of all products.
+create(): Display the form to create a new product.
+store(): Store a newly created product.
+edit($id): Display the form to edit an existing product.
+update($id): Update the specified product.
+destroy($id): Delete the specified product.
+
+Answer : I create a product controller in the laravel by following code
+
+php artisan make:controller ProductController --resource
+
+Then i opened productcontroller.php file from app/Http/Controllers and wrote following code:
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use Illuminate\Http\Request;
+
+class ProductController extends Controller
+{
+    public function index()
+    {
+        $products = Product::all();
+
+        return view('products.index', compact('products'));
+    }
+
+    public function create()
+    {
+        return view('products.create');
+    }
+
+    public function store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required',
+            'price' => 'required|numeric',
+        ]);
+
+        $product = Product::create($validatedData);
+
+        return redirect()->route('products.index')->with('success', 'Product created successfully.');
+    }
+
+    public function edit($id)
+    {
+        $product = Product::findOrFail($id);
+
+        return view('products.edit', compact('product'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required',
+            'price' => 'required|numeric',
+        ]);
+
+        $product = Product::findOrFail($id);
+        $product->update($validatedData);
+
+        return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        $product = Product::findOrFail($id);
+        $product->delete();
+
+        return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
+    }
+}
+
+I use following code to define the route,Wrote this code routes/web.php
+
+Route::resource('products', ProductController::class);
+
+Task 6 : Create a single action controller called ContactController that handles a contact form submission. Implement the __invoke() method to process the form submission and send an email to a predefined address with the submitted data.
+
+Answer: First i created contractcontroller by following code, 
+
+php artisan make:controller ContactController --invokable
+
+Opened ContactController.php file from this directory app/Http/Controllers and wrote following code
+
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+
+class ContactController extends Controller
+{
+    public function __invoke(Request $request)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required',
+            'email' => 'required|email',
+            'message' => 'required',
+        ]);
+
+        // Send email
+        Mail::raw($validatedData['message'], function ($message) use ($validatedData) {
+            $message->to('your-email@example.com');
+            $message->subject('Contact Form Submission');
+            $message->replyTo($validatedData['email']);
+        });
+
+        return response()->json(['message' => 'Email sent successfully.']);
+    }
+}
+
+Use following code to define web.php file
+
+Route::post('/contact', ContactController::class);
+
+Wrote following code contact.blade.php file
+
+<form action="/contact" method="POST">
+    @csrf
+    <div>
+        <label for="name">Name:</label>
+        <input type="text" name="name" id="name">
+    </div>
+    <div>
+        <label for="email">Email:</label>
+        <input type="email" name="email" id="email">
+    </div>
+    <div>
+        <label for="message">Message:</label>
+        <textarea name="message" id="message"></textarea>
+    </div>
+    <button type="submit">Submit</button>
+</form>
+
+Task 7 : Create a resource controller called PostController that handles CRUD operations for a resource called Post. Ensure that the controller provides the necessary methods for the resourceful routing conventions in Laravel.
+
+Answer : I wrote following code PostController.php file
+
+php artisan make:controller PostController --resource
+
+Define route in web.php file
+
+Route::resource('posts', PostController::class);
+
+Wrote following code PostController.php
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Post;
+use Illuminate\Http\Request;
+
+class PostController extends Controller
+{
+    public function index()
+    {
+        $posts = Post::all();
+
+        return view('posts.index', compact('posts'));
+    }
+
+    public function create()
+    {
+        return view('posts.create');
+    }
+
+    public function store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'title' => 'required',
+            'content' => 'required',
+        ]);
+
+        Post::create($validatedData);
+
+        return redirect()->route('posts.index')->with('success', 'Post created successfully.');
+    }
+
+    public function show($id)
+    {
+        $post = Post::findOrFail($id);
+
+        return view('posts.show', compact('post'));
+    }
+
+    public function edit($id)
+    {
+        $post = Post::findOrFail($id);
+
+        return view('posts.edit', compact('post'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validatedData = $request->validate([
+            'title' => 'required',
+            'content' => 'required',
+        ]);
+
+        $post = Post::findOrFail($id);
+        $post->update($validatedData);
+
+        return redirect()->route('posts.index')->with('success', 'Post updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        $post = Post::findOrFail($id);
+        $post->delete();
+
+        return redirect()->route('posts.index')->with('success', 'Post deleted successfully.');
+    }
+}
+
+Task 8 : Create a Blade view called welcome.blade.php that includes a navigation bar and a section displaying the text "Welcome to Laravel!".
+
+Answer : Create the view file welcome.blade.php in the resources/views directory
+
+
+Then i Update the welcome.blade.php file with the following code:
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome to Laravel</title>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav>
+        <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <section>
+        <h1>Welcome to Laravel!</h1>
+    </section>
+</body>
+</html>
+
+Then wrote following code route controller
+
+<?php
+
+namespace App\Http\Controllers;
+
+class HomeController extends Controller
+{
+    public function index()
+    {
+        return view('welcome');
+    }
+}
+
+
+
